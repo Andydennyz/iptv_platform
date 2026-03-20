@@ -1,0 +1,45 @@
+services:
+  # Backend API Service
+  - type: web
+    name: iptv-api
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DB_HOST
+        scope: all
+      - key: DB_USER
+        scope: all
+      - key: DB_PASSWORD
+        scope: all
+      - key: DB_NAME
+        value: iptv
+        scope: all
+      - key: DB_PORT
+        value: 3306
+        scope: all
+      - key: DB_CONN_LIMIT
+        value: 10
+        scope: all
+
+  # Frontend Web Service
+  - type: web
+    name: iptv-app
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run preview
+    envVars:
+      - key: VITE_API_URL
+        value: https://iptv-api.onrender.com
+        scope: all
+    routes:
+      - path: /
+        destination: /index.html
