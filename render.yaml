@@ -12,21 +12,12 @@ services:
         value: production
       - key: PORT
         value: 4000
-      - key: DB_HOST
-        scope: all
-      - key: DB_USER
-        scope: all
-      - key: DB_PASSWORD
-        scope: all
       - key: DB_NAME
         value: iptv
-        scope: all
       - key: DB_PORT
         value: 3306
-        scope: all
       - key: DB_CONN_LIMIT
         value: 10
-        scope: all
 
   # Frontend Web Service
   - type: web
@@ -39,4 +30,3 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://iptv-api.onrender.com
-        scope: all
