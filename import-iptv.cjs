@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 require('dotenv').config();
 
 // M3U Parser
@@ -43,12 +43,10 @@ function parseM3U(filePath) {
 
 // Database import function
 async function importChannels() {
-  const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'iptv',
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || process.env.PG_CONNECTION_STRING,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: Number(process.env.DB_CONN_LIMIT || 10),
   });
 
   try {
@@ -69,8 +67,8 @@ async function importChannels() {
     // Insert categories
     for (const category of categories) {
       const categoryId = `cat-${category.toLowerCase().replace(/\s+/g, '-')}`;
-      await connection.query(
-        'INSERT IGNORE INTO categories (_id, name, icon) VALUES (?, ?, ?)',
+      await pool.query(
+        'INSERT INTO categories (_id, name, icon) VALUES ($1, $2, $3) ON CONFLICT (_id) DO NOTHING',
         [categoryId, category, null]
       );
     }
@@ -87,8 +85,8 @@ async function importChannels() {
       const categoryId = `cat-${channel.category.toLowerCase().replace(/\s+/g, '-')}`;
 
       try {
-        await connection.query(
-          'INSERT INTO channels (_id, name, description, number, categoryId, logoColor, isLive, streamUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        await pool.query(
+          'INSERT INTO channels (_id, name, description, number, categoryId, logoColor, isLive, streamUrl) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (_id) DO NOTHING',
           [
             channelId,
             channel.name,
@@ -120,17 +118,17 @@ async function importChannels() {
     console.log(`   • Skipped: ${skippedCount} (duplicates)`);
 
     // Show summary
-    const [result] = await connection.query('SELECT COUNT(*) as total FROM channels');
-    console.log(`\n📊 Database now contains ${result[0].total} total channels`);
+    const result = await pool.query('SELECT COUNT(*) as total FROM channels');
+    console.log(`\n📊 Database now contains ${result.rows[0].total} total channels`);
 
-    const [cats] = await connection.query('SELECT COUNT(*) as total FROM categories');
-    console.log(`   and ${cats[0].total} categories`);
+    const cats = await pool.query('SELECT COUNT(*) as total FROM categories');
+    console.log(`   and ${cats.rows[0].total} categories`);
 
   } catch (error) {
     console.error('❌ Import failed:', error.message);
     process.exit(1);
   } finally {
-    await connection.end();
+    await pool.end();
   }
 }
 

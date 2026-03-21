@@ -5,8 +5,8 @@ const router = express.Router();
 // GET /api/categories
 router.get('/categories', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT _id, name, icon FROM categories');
-    res.json(rows);
+    const result = await pool.query('SELECT _id, name, icon FROM categories');
+    res.json(result.rows);
   } catch (error) {
     console.error('categories error', error);
     res.status(500).json({ error: 'Failed to load categories' });
@@ -16,10 +16,10 @@ router.get('/categories', async (req, res) => {
 // GET /api/channels
 router.get('/channels', async (req, res) => {
   try {
-    const [rows] = await pool.query(
+    const result = await pool.query(
       'SELECT _id, name, description, number, categoryId, logoColor, isLive, streamUrl FROM channels ORDER BY number'
     );
-    res.json(rows);
+    res.json(result.rows);
   } catch (error) {
     console.error('channels error', error);
     res.status(500).json({ error: 'Failed to load channels' });
@@ -34,18 +34,21 @@ router.get('/programs', async (req, res) => {
   }
 
   try {
-    const [channels] = await pool.query(
+    const channelsResult = await pool.query(
       'SELECT _id, name, description, number, categoryId, logoColor, isLive, streamUrl FROM channels ORDER BY number'
     );
 
-    const [programs] = await pool.query(
-      'SELECT _id, channelId, title, description, genre, rating, startTime, endTime FROM programs WHERE startTime <= ? AND endTime >= ? ORDER BY startTime',
+    const programsResult = await pool.query(
+      'SELECT _id, channelId, title, description, genre, rating, startTime, endTime FROM programs WHERE startTime <= $1 AND endTime >= $2 ORDER BY startTime',
       [windowEnd, windowStart]
     );
 
+    const channels = channelsResult.rows;
+    const programs = programsResult.rows;
+
     const epg = channels.map((channel) => ({
       channel,
-      programs: programs.filter((program) => program.channelId === channel._id),
+      programs: programs.filter((program) => (program.channelid || program.channelId) === channel._id),
     }));
 
     res.json(epg);
@@ -70,12 +73,19 @@ router.post('/programs/seed', async (req, res) => {
       ['p3', 'ch2', 'Live Football', 'Weekend match', 'Sports', 'PG', '2026-03-20 00:30:00', '2026-03-20 02:30:00'],
     ];
 
-    await pool.query(
-      'INSERT IGNORE INTO channels (_id,name,description,number,categoryId,logoColor,isLive,streamUrl) VALUES ?',[channelData]
-    );
-    await pool.query(
-      'INSERT IGNORE INTO programs (_id,channelId,title,description,genre,rating,startTime,endTime) VALUES ?',[programData]
-    );
+    for (const channel of channelData) {
+      await pool.query(
+        'INSERT INTO channels (_id,name,description,number,categoryId,logoColor,isLive,streamUrl) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (_id) DO NOTHING',
+        channel
+      );
+    }
+
+    for (const program of programData) {
+      await pool.query(
+        'INSERT INTO programs (_id,channelId,title,description,genre,rating,startTime,endTime) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (_id) DO NOTHING',
+        program
+      );
+    }
 
     res.json({ seeded: true });
   } catch (error) {

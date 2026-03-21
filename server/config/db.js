@@ -1,15 +1,12 @@
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 require('dotenv').config();
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || '127.0.0.1',
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'iptv',
-  waitForConnections: true,
-  connectionLimit: Number(process.env.DB_CONN_LIMIT || 10),
-  queueLimit: 0,
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || process.env.PG_CONNECTION_STRING,
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: false }
+    : false,
+  max: Number(process.env.DB_CONN_LIMIT || 10),
 });
 
 module.exports = pool;
